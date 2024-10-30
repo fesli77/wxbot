@@ -1,14 +1,34 @@
-#设置镜像使用的基础镜像
-FROM openjdk:8u322-jre-buster
-# 作者
-MAINTAINER niefy <niefy@qq.com>
-#设置镜像暴露的端口 这里要与application.properties中的server.port保持一致
-EXPOSE 80
-#设置容器的挂载卷
-VOLUME /tmp
-#编译镜像时将springboot生成的jar文件复制到镜像中
-ADD target/wx-api.jar  /wx-api.jar
-#编译镜像时运行脚本
-RUN bash -c 'touch /wx-api.jar'
-#容器的入口程序，这里注意如果要指定外部配置文件需要使用-spring.config.location指定配置文件存放目录
-ENTRYPOINT ["java","-jar","/wx-api.jar"]
+# 二开推荐阅读[如何提高项目构建效率](https://developers.weixin.qq.com/miniprogram/dev/wxcloudrun/src/scene/build/speed.html)
+FROM alpine:3.13
+
+# 容器默认时区为UTC，如需使用上海时间请启用以下时区设置命令
+# RUN apk add tzdata && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo Asia/Shanghai > /etc/timezone
+
+# 使用 HTTPS 协议访问容器云调用证书安装
+RUN apk add ca-certificates
+
+# 安装依赖包，如需其他依赖包，请到alpine依赖包管理(https://pkgs.alpinelinux.org/packages?name=php8*imagick*&branch=v3.13)查找。
+# 选用国内镜像源以提高下载速度
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tencent.com/g' /etc/apk/repositories \
+&& apk add --update --no-cache nodejs npm
+
+# # 指定工作目录
+WORKDIR /app
+
+# 拷贝包管理文件
+COPY package*.json /app/
+
+# npm 源，选用国内镜像源以提高下载速度
+RUN npm config set registry https://mirrors.cloud.tencent.com/npm/
+# RUN npm config set registry https://registry.npm.taobao.org/
+
+# npm 安装依赖
+RUN npm install
+
+# 将当前目录（dockerfile所在目录）下所有文件都拷贝到工作目录下（.dockerignore中文件除外）
+COPY . /app
+
+# 执行启动命令
+# 写多行独立的CMD命令是错误写法！只有最后一行CMD命令会被执行，之前的都会被忽略，导致业务报错。
+# 请参考[Docker官方文档之CMD命令](https://docs.docker.com/engine/reference/builder/#cmd)
+CMD ["npm", "start"]
